@@ -1,0 +1,24 @@
+﻿@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<p>
+    This is a demonstration of how to use a Cascading Parameter to share state between components
+    in a .NET Blazor Web App using InteractiveServer mode.
+</p>
+
+<button class="btn btn-primary" @onclick="UpdateMessageButtonClicked">Update Message</button>
+<br />
+<br />
+<h3>@AppState.Message</h3>
+
+@code 
+{
+    [CascadingParameter] 
+    public CascadingAppState AppState { get; set; }
+
+    void UpdateMessageButtonClicked()
+    {
+        AppState.Message = $"Message Updated At {DateTime.Now.ToLongTimeString()}";
+    }
+}
