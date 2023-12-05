@@ -1,5 +1,12 @@
 # Managing Application State in .NET 8 Blazor Web Apps
 
+> This repo shows how to manage application state in a .NET 8 Blazor Web App using Interactive Server RenderMode.
+>
+> See these other repos for demos using the other two render modes:
+>
+> - https://github.com/carlfranklin/AppStateWasm (Wasm)
+> - https://github.com/carlfranklin/AppStateAuto (Auto)
+
 ### What is Application State?
 
 Application State (or app state) represents collectively all of the variables (objects, lists, etc.) that you keep alive in your application while in use.  The default Blazor Sample App templates keep all variables in code blocks inside of pages. The problem with this approach is that those variables get reinitialized every time the page is navigated to or refreshed. 
