@@ -267,6 +267,14 @@ Click the **Update Message** button, and notice that the text in the Toolbar cha
 
 ## Getting control when an AppState variable is changed
 
+So far we have handled the situation where multiple components that access AppState properties can update their UI whenever one of those components changes an AppState property value.
+
+What if a component needs to take action when a property value changes? For example, the Toolbar might want to send a message, make an API call, or the like. 
+
+One option is just to handle this inside the *CascadingAppState.razor* component's property setters. However, we may not want to give the AppState component such power over the application. In general, we should adhere to the [Single Responsibility Principle](https://learn.microsoft.com/en-us/dotnet/architecture/modern-web-apps-azure/architectural-principles).
+
+In this case, we want to create a pub/sub mechanism by which each component/page can be notified when a property changes.
+
 Modify the *CascadingAppState.razor* file with this:
 
 ```c#
@@ -321,7 +329,7 @@ Modify the *CascadingAppState.razor* file with this:
 
 Add *StatePropertyChangedArgs.cs* to the project:
 
-```c@
+```c#
 /// <summary>
 /// This record is used to pass the name of the property that 
 /// changed and the new value of the property.
@@ -376,17 +384,17 @@ Set a breakpoint in the `Toolbar`'s `HandlePropertyChanged` method. Run the app 
 
 If you inspect the `args` value, the `PropertyName` will be "Message", and `NewValue` will be the value that it was just set to.
 
-#### Why?
-
-Why would want to know when another component updates an AppState property? 
-
-If your goal is just to reflect the state variables in the UI when they change, you do not need to react to `PropertyChanged`.
-
-However, there may be a situation when you need to run some code, save data to a database, or do any other code action when a value changes. Now you have a way to do that.
-
 ## Persisting Application State
 
 It would be great if we could save certain `AppState` properties so that they will come back the next time the app is run. 
+
+Here's a scenario: You have a large set of input form fields that the user needs to fill out. After meticulously entering 99% of their data, they have to take a phone call during which the form times out, the computer reboots, or some other issue forces them to refresh the page. All that work is for nothing. 
+
+By keeping their form values in AppState properties, and persisting those properties to their local storage area in their browser, we can retrieve the values the next time they log in. 
+
+What's more, we can keep track of other data such as what page they were using, or any other session-scoped variables that we'd like to persist between sessions.
+
+In this example, we will also implement a time window, after which we will NOT reload their AppState property values. Another option would be to ask the user if they'd like to continue where they left off whenever they log in. 
 
 We will need access to LocalStorage. Because this is a Blazor Server app, we can use `ProtectedBrowserStorage`, which will encrypt data for us.
 
