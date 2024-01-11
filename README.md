@@ -201,26 +201,15 @@ Now we can refer to `AppState` and it's properties anywhere in the component. Th
     in a .NET Blazor Web App using InteractiveServer mode.
 </p>
 
-<button disabled="@uiDisabled" class="btn btn-primary" @onclick="UpdateMessageButtonClicked">Update Message</button>
+<button class="btn btn-primary" @onclick="UpdateMessageButtonClicked">Update Message</button>
 <br />
 <br />
 <h3>@AppState.Message</h3>
 
-@code
+@code 
 {
-    [CascadingParameter]
+    [CascadingParameter] 
     public CascadingAppState AppState { get; set; }
-
-    bool uiDisabled = true;
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (firstRender)
-        {
-            uiDisabled = false;
-            StateHasChanged();
-        }
-    }
 
     void UpdateMessageButtonClicked()
     {
