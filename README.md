@@ -543,7 +543,7 @@ public partial class CascadingAppState : ComponentBase, IAppState
                     //this.Message = state.Message;
                     //this.Count = state.Count;
 
-                    // set properties using Reflaction
+                    // set properties using Reflection
                     var t = typeof(IAppState);
                     var props = t.GetProperties();
                     foreach (var prop in props)
