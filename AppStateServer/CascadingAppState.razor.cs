@@ -20,11 +20,34 @@ public partial class CascadingAppState : ComponentBase, IAppState
     [Parameter]
     public RenderFragment ChildContent { get; set; }
 
-    /// <summary>
-    /// This EventCallback is raised when any property of the AppState changes
-    /// </summary>
-    [Parameter]
-    public EventCallback<StatePropertyChangedArgs> PropertyChanged { get; set; }
+    // Rather than having a Parameter, we are maintaining a list of callbacks
+    private List<EventCallback<StatePropertyChangedArgs>> Callbacks
+        = new List<EventCallback<StatePropertyChangedArgs>>();
+
+    // Each component will register a callback
+    public void RegisterCallback(EventCallback<StatePropertyChangedArgs> callback)
+    {
+        // Only add if we have not already registered this callback
+        if (!Callbacks.Contains(callback))
+        {
+            Callbacks.Add(callback);
+        }
+    }
+
+    // We call this from our property setters
+    private void NotifyPropertyChanged(StatePropertyChangedArgs args)
+    {
+        foreach (var callback in Callbacks)
+        {
+            // Ignore exceptions due to dangling references
+            try
+            {
+                // Invoke the callback
+                callback.InvokeAsync(args);
+            }
+            catch { }
+        }
+    }
 
     /// <summary>
     /// Implement property handlers like so
@@ -36,8 +59,11 @@ public partial class CascadingAppState : ComponentBase, IAppState
         set
         {
             message = value;
-            StateHasChanged();  // Optionally force a re-render
-            PropertyChanged.InvokeAsync(new("Message", value));
+            // Force a re-render
+            StateHasChanged();
+            // Notify any listeners
+            NotifyPropertyChanged(new("Message", value));
+            // Save to local storage
             new Task(async () =>
             {
                 await Save();
@@ -53,7 +79,7 @@ public partial class CascadingAppState : ComponentBase, IAppState
         {
             count = value;
             StateHasChanged();
-            PropertyChanged.InvokeAsync(new("Count", value));
+            NotifyPropertyChanged(new("Count", value));
             new Task(async () =>
             {
                 await Save();
