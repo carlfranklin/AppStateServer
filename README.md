@@ -373,12 +373,7 @@ Modify *Toolbar.razor* to handle the `EventCallback`:
 
     protected override void OnInitialized()
     {
-        // Subscribe to the PropertyChanged event.
-
-        // We do not need to implement IDisposable because it's an EventCallback, not an event.
-
-        AppState.PropertyChanged = 
-            EventCallback.Factory.Create<StatePropertyChangedArgs>(this, HandlePropertyChanged);
+        AppState.RegisterCallback(EventCallback.Factory.Create<StatePropertyChangedArgs>(this, HandlePropertyChanged));
     }
 
     private void HandlePropertyChanged(StatePropertyChangedArgs args)
