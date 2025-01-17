@@ -262,104 +262,110 @@ What if a component needs to take action when a property value changes? For exam
 
 One option is just to handle this inside the *CascadingAppState.razor* component's property setters. However, we may not want to give the AppState component such power over the application. In general, we should adhere to the [Single Responsibility Principle](https://learn.microsoft.com/en-us/dotnet/architecture/modern-web-apps-azure/architectural-principles).
 
-In this case, we want to create a pub/sub mechanism by which each component/page can be notified when a property changes.
+In previous versions of this code, I created a pub/sub mechanism by which each component/page can be notified when a property changes. 
 
-Modify the *CascadingAppState.razor* file with this:
+This demo turned out to have memory leaks, because I didn't provide a way to unsubscribe (UnRegister). One fix would be to implement *IDisposable* to unhook the event callback. It works fine, but I wanted an easier solution that didn't require un-registering.
+
+So, on January 17. 2025, I greatly simplified this process. CascadingAppState.GetCopy() returns a copy of all the properties properties via an Interface. Any component can determine what changed by hooking OnAfterRender and comparing the AppState values to the saved values.
+
+### Monitor AppState Property Changes in the Toolbar
+
+First, we are going to separate the properties we want to persist into an interface.
+
+That will allow us to serialize just those properties to JSON, allowing us to make a deep copy, and also persist the values, which we will do in a few minutes.
+
+Add the following class to the project:
+
+*IAppState.cs*
+
+```c#
+namespace AppStateServer;
+
+public interface IAppState
+{
+    string Message { get; set; }
+    int Count { get; set; }
+}
+```
+
+`System.Text.Json` will not deserialize to an interface, so we have to create a class that implements the interface:
+
+```c#
+namespace AppStateServer;
+
+public class AppState : IAppState
+{
+    public string Message { get; set; } =  string.Empty;
+    public int Count { get; set; }
+}
+```
+
+Now replace *CascadingAppState.razor* with the following:
 
 ```c#
 <CascadingValue Value="this">
     @ChildContent
 </CascadingValue>
+```
 
-@code {
+Add a code-behind file named *CascadingAppState.razor.cs*:
 
-    [Parameter]
-    public RenderFragment ChildContent { get; set; }
+```c#
+using Microsoft.AspNetCore.Components;
+using System.Text.Json;
 
-    // Rather than having a Parameter, we are maintaining a list of callbacks
-    private List<EventCallback<StatePropertyChangedArgs>> Callbacks 
-        = new List<EventCallback<StatePropertyChangedArgs>>();
+namespace AppStateServer.Components;
 
-    // Each component will register a callback
-    public void RegisterCallback(EventCallback<StatePropertyChangedArgs> callback)
-    {
-        // Only add if we have not already registered this callback
-        if (!Callbacks.Contains(callback))
-        {
-            Callbacks.Add(callback);
-        }
-    }
+public partial class CascadingAppState: ComponentBase, IAppState
+{
+	[Parameter]
+	public RenderFragment ChildContent { get; set; }
 
-    // We call this from our property setters
-    private void NotifyPropertyChanged(StatePropertyChangedArgs args)
-    {
-        foreach (var callback in Callbacks)
-        {
-            // Ignore exceptions due to dangling references
-            try
-            {
-                // Invoke the callback
-                callback.InvokeAsync(args);
-            }
-            catch { }
-        }
-    }
+	// Used for tracking changes
+	public IAppState GetCopy()
+	{
+		var state = (IAppState)this;
+		var json = JsonSerializer.Serialize(state);
+		var copy = JsonSerializer.Deserialize<AppState>(json);
+		return copy;
+	}
 
-    /// <summary>
-    /// Implement property handlers like so
-    /// </summary>
-    private string message = "";
-    public string Message
-    {
-        get => message;
-        set
-        {
-            message = value;
-            // Force a re-render
-            StateHasChanged();
-            // Notify any listeners
-            NotifyPropertyChanged(new("Message", value));
-        }
-    }
+	/// <summary>
+	/// Implement property handlers like so
+	/// </summary>
+	private string message = "";
+	public string Message
+	{
+		get => message;
+		set
+		{
+			message = value;
+			// Force a re-render
+			StateHasChanged();
+		}
+	}
 
-    private int count = 0;
-    public int Count
-    {
-        get => count;
-        set
-        {
-            count = value;
-            StateHasChanged();
-            NotifyPropertyChanged(new("Count", value));
-        }
-    }
+	private int count = 0;
+	public int Count
+	{
+		get => count;
+		set
+		{
+			count = value;
+			StateHasChanged();
+		}
+	}
 
-    protected override void OnInitialized()
-    {
-        Message = "Initial Message";
-    }
+	protected override void OnInitialized()
+	{
+		Message = "Initial Message";
+	}
 }
 ```
 
-Add *StatePropertyChangedArgs.cs* to the project:
+The `GetCopy()` method will return a copy of all the values that we are interested in monitoring.
 
-```c#
-/// <summary>
-/// This record is used to pass the name of the property that 
-/// changed and the new value of the property.
-/// </summary>
-/// <param name="PropertyName"></param>
-/// <param name="NewValue"></param>
-public record StatePropertyChangedArgs(string PropertyName, object? NewValue);
-```
-
-Now `CascadingAppState` will notify all the components that have registered whenever a property changes.
-
-### Why not just implement `INotifyPropertyChanged`?
-
-You absolutely could. However, the Blazor Component Model gives us the `EventCallback`, the handlers for which do not have to be unhooked, and therefore the consumers of them do not need to implement `IDisposable`.
-
-Modify *Toolbar.razor* to handle the `EventCallback`:
+Replace *Toolbar.razor* with this:
 
 ```c#
 ﻿<div style="height:42px;">
@@ -371,27 +377,47 @@ Modify *Toolbar.razor* to handle the `EventCallback`:
     [CascadingParameter]
     public CascadingAppState AppState { get; set; }
 
+    // private copy of the AppState data
+    IAppState state;
+
     protected override void OnInitialized()
     {
-        AppState.RegisterCallback(EventCallback.Factory.Create<StatePropertyChangedArgs>(this, HandlePropertyChanged));
+        state = AppState.GetCopy();
     }
 
-    private void HandlePropertyChanged(StatePropertyChangedArgs args)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Now the toolbar can be notified when any AppState property changes, and retrieve the new value
+        // Check for changes
+        if (AppState.Message != state.Message)
+        {
+            // Message has changed
+            state.Message = AppState.Message;
+        }
+        else if (AppState.Count != state.Count)
+        {
+            // Count has changed
+            state.Count = AppState.Count;
+        }
     }
 }
 ```
 
-Set a breakpoint in the `Toolbar`'s `HandlePropertyChanged` method. Run the app and click the **Update Message** button.
+When a property is changed, a render happens. Your component can test to see what values have changed by comparing them against the saved state variable.
+
+Set a breakpoint on this line:
+
+```c#
+// Message has changed
+state.Message = AppState.Message;
+```
+
+Run the app and click the **Update Message** button.
 
 ![image-20231205142500715](images/image-20231205142500715.png)
 
+![image-20250117133724319](images/image-20250117133724319.png)
 
-
-![image-20231205142533423](images/image-20231205142533423.png)
-
-If you inspect the `args` value, the `PropertyName` will be "Message", and `NewValue` will be the value that it was just set to.
+There it is.  A simple solution to monitoring AppState values.
 
 ## Persisting Application State
 
@@ -413,11 +439,7 @@ Add this to *Program.cs*:
 builder.Services.AddDataProtection();
 ```
 
-We are going to separate the properties we want to persist into an interface.
-
-That will allow us to serialize just those properties to JSON.
-
-Add the following class to the project:
+We need to add a field to our `IAppState` interface and implementation:
 
 *IAppState.cs*
 
@@ -432,8 +454,6 @@ public interface IAppState
 }
 ```
 
-`System.Text.Json` will not deserialize to an interface, so we have to create a class that implements the interface:
-
 ```c#
 namespace AppStateServer;
 
@@ -445,170 +465,141 @@ public class AppState : IAppState
 }
 ```
 
-Now replace *CascadingAppState.razor* with the following:
-
-```c#
-<CascadingValue Value="this">
-    @ChildContent
-</CascadingValue>
-```
-
-Add a code-behind file named *CascadingAppState.razor.cs*:
+Replace *CascadingAppState.razor.cs* with this:
 
 ```c#
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using System.ComponentModel;
 using System.Text.Json;
 
-namespace AppStateServer;
+namespace AppStateServer.Components;
 
 public partial class CascadingAppState : ComponentBase, IAppState
 {
-    private readonly string StorageKey = "MyAppStateKey";
+	private readonly string StorageKey = "MyAppStateKey";
 
-    private readonly int StorageTimeoutInSeconds = 30;
+	private readonly int StorageTimeoutInSeconds = 30;
 
-    bool loaded = false;
+	bool loaded = false;
 
-    public DateTime LastStorageSaveTime { get; set; }
+	public DateTime LastStorageSaveTime { get; set; }
 
-    [Inject]
-    ProtectedLocalStorage localStorage { get; set; }
+	[Inject]
+	ProtectedLocalStorage localStorage { get; set; }
 
-    [Parameter]
-    public RenderFragment ChildContent { get; set; }
+	[Parameter]
+	public RenderFragment ChildContent { get; set; }
 
-    // Rather than having a Parameter, we are maintaining a list of callbacks
-    private List<EventCallback<StatePropertyChangedArgs>> Callbacks
-        = new List<EventCallback<StatePropertyChangedArgs>>();
+	/// <summary>
+	/// Implement property handlers like so
+	/// </summary>
+	private string message = "";
+	public string Message
+	{
+		get => message;
+		set
+		{
+			message = value;
+			// Force a re-render
+			StateHasChanged();
+			// Save to local storage
+			new Task(async () =>
+			{
+				await Save();
+			}).Start();
+		}
+	}
 
-    // Each component will register a callback
-    public void RegisterCallback(EventCallback<StatePropertyChangedArgs> callback)
-    {
-        // Only add if we have not already registered this callback
-        if (!Callbacks.Contains(callback))
-        {
-            Callbacks.Add(callback);
-        }
-    }
+	private int count = 0;
+	public int Count
+	{
+		get => count;
+		set
+		{
+			count = value;
+			StateHasChanged();
+			new Task(async () =>
+			{
+				await Save();
+			}).Start();
+		}
+	}
 
-    // We call this from our property setters
-    private void NotifyPropertyChanged(StatePropertyChangedArgs args)
-    {
-        foreach (var callback in Callbacks)
-        {
-            // Ignore exceptions due to dangling references
-            try
-            {
-                // Invoke the callback
-                callback.InvokeAsync(args);
-            }
-            catch { }
-        }
-    }
 
-    /// <summary>
-    /// Implement property handlers like so
-    /// </summary>
-    private string message = "";
-    public string Message
-    {
-        get => message;
-        set
-        {
-            message = value;
-            // Force a re-render
-            StateHasChanged();
-            // Notify any listeners
-            NotifyPropertyChanged(new("Message", value));
-            // Save to local storage
-            new Task(async () =>
-            {
-                await Save();
-            }).Start();
-        }
-    }
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			await Load();
+			loaded = true;
+			StateHasChanged();
+		}
+	}
 
-    private int count = 0;
-    public int Count
-    {
-        get => count;
-        set
-        {
-            count = value;
-            StateHasChanged();
-            NotifyPropertyChanged(new("Count", value));
-            new Task(async () =>
-            {
-                await Save();
-            }).Start();
-        }
-    }
+	protected override void OnInitialized()
+	{
+		Message = "Initial Message";
+	}
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await Load();
-            loaded = true;
-            StateHasChanged();
-        }
-    }
+	// Used for tracking changes
+	public IAppState GetCopy()
+	{
+		var state = (IAppState)this;
+		var json = JsonSerializer.Serialize(state);
+		var copy = JsonSerializer.Deserialize<AppState>(json);
+		return copy;
+	}
 
-    protected override void OnInitialized()
-    {
-        Message = "Initial Message";
-    }
+	public async Task Save()
+	{
+		if (!loaded) return;
 
-    public async Task Save()
-    {
-        if (!loaded) return;
+		// set LastSaveTime
+		LastStorageSaveTime = DateTime.Now;
+		// serialize 
+		var state = (IAppState)this;
+		var json = JsonSerializer.Serialize(state);
+		// save
+		await localStorage.SetAsync(StorageKey, json);
+	}
 
-        // set LastSaveTime
-        LastStorageSaveTime = DateTime.Now;
-        // serialize 
-        var state = (IAppState)this;
-        var json = JsonSerializer.Serialize(state);
-        // save
-        await localStorage.SetAsync(StorageKey, json);
-    }
+	public async Task Load()
+	{
+		try
+		{
+			var data = await localStorage.GetAsync<string>(StorageKey);
+			var state = JsonSerializer.Deserialize<AppState>(data.Value);
+			if (state != null)
+			{
+				if (DateTime.Now.Subtract(state.LastStorageSaveTime).TotalSeconds <= StorageTimeoutInSeconds)
+				{
+					// decide whether to set properties manually or with reflection
 
-    public async Task Load()
-    {
-        try
-        {
-            var data = await localStorage.GetAsync<string>(StorageKey);
-            var state = JsonSerializer.Deserialize<AppState>(data.Value);
-            if (state != null)
-            {
-                if (DateTime.Now.Subtract(state.LastStorageSaveTime).TotalSeconds <= StorageTimeoutInSeconds)
-                {
-                    // decide whether to set properties manually or with reflection
+					// comment to set properties manually
+					//this.Message = state.Message;
+					//this.Count = state.Count;
 
-                    // comment to set properties manually
-                    //this.Message = state.Message;
-                    //this.Count = state.Count;
+					// set properties using Reflaction
+					var t = typeof(IAppState);
+					var props = t.GetProperties();
+					foreach (var prop in props)
+					{
+						if (prop.Name != "LastStorageSaveTime")
+						{
+							object value = prop.GetValue(state);
+							prop.SetValue(this, value, null);
+						}
+					}
 
-                    // set properties using Reflection
-                    var t = typeof(IAppState);
-                    var props = t.GetProperties();
-                    foreach (var prop in props)
-                    {
-                        if (prop.Name != "LastStorageSaveTime")
-                        {
-                            object value = prop.GetValue(state);
-                            prop.SetValue(this, value, null);
-                        }
-                    }
+				}
+			}
+		}
+		catch (Exception ex)
+		{
 
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-
-        }
-    }
+		}
+	}
 }
 ```
 
