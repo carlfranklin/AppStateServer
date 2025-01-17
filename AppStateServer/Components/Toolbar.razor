@@ -7,13 +7,27 @@
     [CascadingParameter]
     public CascadingAppState AppState { get; set; }
 
+    // private copy of the AppState data
+    IAppState state;
+
     protected override void OnInitialized()
     {
-        AppState.RegisterCallback(EventCallback.Factory.Create<StatePropertyChangedArgs>(this, HandlePropertyChanged));
+        state = AppState.GetCopy();
     }
 
-    private void HandlePropertyChanged(StatePropertyChangedArgs args)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Now the toolbar can be notified when any AppState property changes, and retrieve the new value
+        // Check for changes
+        if (AppState.Message != state.Message)
+        {
+            // Message has changed
+            state.Message = AppState.Message;
+        }
+        else if (AppState.Count != state.Count)
+        {
+            // Count has changed
+            state.Count = AppState.Count;
+        }
     }
+
 }

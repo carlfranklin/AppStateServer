@@ -12,10 +12,11 @@
 
     [CascadingParameter]
     public CascadingAppState AppState { get; set; }
-
+    
     private void IncrementCount()
     {
         // This is the only place AppState.Count is incremented
         AppState.Count++;
     }
+   
 }
