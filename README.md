@@ -266,7 +266,9 @@ In previous versions of this code, I created a pub/sub mechanism by which each c
 
 This demo turned out to have memory leaks, because I didn't provide a way to unsubscribe (UnRegister). One fix would be to implement *IDisposable* to unhook the event callback. It works fine, but I wanted an easier solution that didn't require un-registering.
 
-So, on January 17. 2025, I greatly simplified this process. CascadingAppState.GetCopy() returns a copy of all the properties properties via an Interface. Any component can determine what changed by hooking OnAfterRender and comparing the AppState values to the saved values.
+So, on January 17. 2025, I greatly simplified this process. CascadingAppState.GetCopy() returns a copy of all the properties via an Interface. Any component can determine what changed by hooking OnAfterRender and comparing the AppState values to the saved values.
+
+:point_up: NOTE: This only works if the component that needs notification is visible. If this is not the case, you'll need to implement *INotifyPropertyChanged* and *IDisposable* using the standard C# pattern.
 
 ### Monitor AppState Property Changes in the Toolbar
 
