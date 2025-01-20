@@ -1,6 +1,6 @@
 # Managing Application State in .NET 8/9 Blazor Web Apps
 
-> This repo shows how to manage application state in a .NET 8 Blazor Web App using Interactive Server RenderMode.
+> This repo shows how to manage application state in a .NET 8 or .NET 9 Blazor Web App using Interactive Server RenderMode.
 >
 > See these other repos for demos using the other two render modes:
 >
