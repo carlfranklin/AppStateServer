@@ -1,0 +1,29 @@
+﻿@code {
+
+    [CascadingParameter]
+    public CascadingAppState AppState { get; set; }
+
+    // private copy of the AppState data
+    IAppState state;
+
+    protected override void OnInitialized()
+    {
+        state = AppState.GetCopy();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Check for changes
+        if (AppState.Message != state.Message)
+        {
+            // Message has changed
+            state.Message = AppState.Message;
+        }
+        else if (AppState.Count != state.Count)
+        {
+            // Count has changed
+            state.Count = AppState.Count;
+        }
+    }
+
+}

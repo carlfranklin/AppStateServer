@@ -268,8 +268,6 @@ This demo turned out to have memory leaks, because I didn't provide a way to uns
 
 So, on January 17. 2025, I greatly simplified this process. CascadingAppState.GetCopy() returns a copy of all the properties via an Interface. Any component can determine what changed by hooking OnAfterRender and comparing the AppState values to the saved values.
 
-:point_up: NOTE: This only works if the component that needs notification is visible. If this is not the case, you'll need to implement *INotifyPropertyChanged* and *IDisposable* using the standard C# pattern.
-
 ### Monitor AppState Property Changes in the Toolbar
 
 First, we are going to separate the properties we want to persist into an interface.
@@ -420,6 +418,74 @@ Run the app and click the **Update Message** button.
 ![image-20250117133724319](images/image-20250117133724319.png)
 
 There it is.  A simple solution to monitoring AppState values.
+
+### Monitoring State Changes from Non-UI Components
+
+There is a use-case for having a component with no user interface instantiated on a page, and that component needs to be notified of changes to AppState properties. For example, a component that provides access to back-end services via API or other mechanisms. Wrapping that code in a component gives you access to cascading parameters, event callbacks, and other features.
+
+The good news is that as long as the component is instantiated on a page, the OnAfterRender method will be called, even though there is no UI.
+
+To demonstrate this, add a new Razor component to the *Components* folder that has no UI, but handles changes the way we just did in the toolbar:
+
+*HiddenComponent.razor*:
+
+```c#
+@code {
+
+    [CascadingParameter]
+    public CascadingAppState AppState { get; set; }
+
+    // private copy of the AppState data
+    IAppState state;
+
+    protected override void OnInitialized()
+    {
+        state = AppState.GetCopy();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Check for changes
+        if (AppState.Message != state.Message)
+        {
+            // Message has changed
+            state.Message = AppState.Message;
+        }
+        else if (AppState.Count != state.Count)
+        {
+            // Count has changed
+            state.Count = AppState.Count;
+        }
+    }
+
+}
+```
+
+Now, create an instance in *Home.razor* at the bottom of the markup:
+
+```xml
+<HiddenComponent />
+```
+
+Put a breakpoint on the line:
+
+```c#
+// Message has changed
+state.Message = AppState.Message;
+```
+
+Run the app and press the button. The code breaks as expected.
+
+Now, try putting a breakpoint on this line:
+
+```c#
+// Count has changed
+state.Count = AppState.Count;
+```
+
+Go to the Counter page and increment the count. The breakpoint does not hit because our `HiddenComponent` is not in play. It's not instantiated on the Counter page. 
+
+Here's the bottom line: if you need to get control whenever a state property changes in any page, that component needs to be visible. Consider moving it to a place that's always visible like a toolbar, a sidebar, or a footer.
 
 ## Persisting Application State
 
