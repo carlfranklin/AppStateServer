@@ -540,7 +540,7 @@ public void Dispose()
 }
 ```
 
-Check out *Toolbar.razor* in the repo
+Check out *Toolbar.razor* in the repo for a complete demo.
 
 ## Persisting Application State
 
