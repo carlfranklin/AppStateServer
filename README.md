@@ -487,6 +487,61 @@ Go to the Counter page and increment the count. The breakpoint does not hit beca
 
 Here's the bottom line: if you need to get control whenever a state property changes in any page, that component needs to be visible. Consider moving it to a place that's always visible like a toolbar, a sidebar, or a footer.
 
+### Alternative: Use a Standard C# Action
+
+OK, I hear you. You'd rather just use the standard method, which requires subscribing and unsubscribing from events. Here's what you need to do.
+
+Add the following to *CascadingAppState.razor.cs*:
+
+```c#
+// Alternative property change notification event
+public event Action<string> PropertyChanged;
+private void NotifyPropertyChanged(string value) => PropertyChanged?.Invoke(value);
+```
+
+In the property setters, after calling `StateHasChanged()`, make the following call:
+
+```c#
+NotifyPropertyChanged("Message");
+```
+
+Of course, "Message" is the name of the property that has changed.
+
+Now, in the components that will consume the event, you'll need to implement `IDisposable`:
+
+```
+@implements IDisposable
+```
+
+Create an event handler:
+
+```c#
+public void PropertyChangedHandler(string PropertyName)
+{
+    // take action based on the property name
+}
+```
+
+To Subscribe:
+
+```c#
+protected override void OnInitialized()
+{
+    AppState.PropertyChanged += PropertyChangedHandler;
+}
+```
+
+To Unsubscribe:
+
+```c#
+public void Dispose()
+{
+    AppState.PropertyChanged -= PropertyChangedHandler;
+}
+```
+
+Check out *Toolbar.razor* in the repo
+
 ## Persisting Application State
 
 It would be great if we could save certain `AppState` properties so that they will come back the next time the app is run. 

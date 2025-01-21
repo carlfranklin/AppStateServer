@@ -1,4 +1,6 @@
-﻿﻿<div style="height:42px;">
+﻿@implements IDisposable
+
+<div style="height:42px;">
     <span style="font-size:x-large">@AppState.Message</span>
 </div>
 
@@ -13,6 +15,8 @@
     protected override void OnInitialized()
     {
         state = AppState.GetCopy();
+
+        AppState.PropertyChanged += PropertyChangedHandler;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -30,4 +34,14 @@
         }
     }
 
+    public void PropertyChangedHandler(string PropertyName)
+    {
+
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe from the event
+        AppState.PropertyChanged -= PropertyChangedHandler;
+    }
 }
