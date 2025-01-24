@@ -6,6 +6,8 @@
 >
 > - https://github.com/carlfranklin/AppStateWasm (Wasm)
 > - https://github.com/carlfranklin/AppStateAuto (Auto)
+>
+> Watch the [BlazorTrain](https://blazortrain.com/) YouTube video [here](https://youtu.be/6oTTPM76-s8)
 
 ### What is Application State?
 
@@ -703,7 +705,7 @@ public partial class CascadingAppState : ComponentBase, IAppState
 					//this.Message = state.Message;
 					//this.Count = state.Count;
 
-					// set properties using Reflaction
+					// set properties using Reflection
 					var t = typeof(IAppState);
 					var props = t.GetProperties();
 					foreach (var prop in props)
