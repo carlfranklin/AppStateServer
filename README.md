@@ -76,6 +76,39 @@ Whenever you navigate to a page, it is reinitialized. All of the module-level va
 
 Let's fix that on our way to provide state to the entire app.
 
+#### Turn off pre-rendering
+
+~/Components/App.razor
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="AppStateServer.styles.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+
+    <!-- Turn off pre-rendering -->
+    <HeadOutlet @rendermode="@(new InteractiveServerRenderMode(false))" />
+</head>
+
+<body>
+
+    <!-- Turn off pre-rendering -->
+    <Routes @rendermode="@(new InteractiveServerRenderMode(false))" />
+
+    <script src="_framework/blazor.web.js"></script>
+</body>
+
+</html>
+```
+
+
 #### Add a new Razor Component called CascadingAppState.razor
 
 ```c#
